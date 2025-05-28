@@ -3,3 +3,4 @@ TODO
 .env
 .idea
 vendor
+config/json
