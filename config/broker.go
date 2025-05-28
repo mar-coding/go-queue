@@ -32,6 +32,9 @@ type Config struct {
 
 	// ReadTimeout is the timeout for read operations
 	ReadTimeout time.Duration
+
+	// RegistryURL is the url of the registry to add the nodes in it.
+	RegistryURL string
 }
 
 // configJSON is a temporary struct to unmarshal JSON into before processing time values
@@ -44,6 +47,7 @@ type configJSON struct {
 	HealthCheckInterval string   `json:"healthCheckInterval"`
 	NodeTimeout         string   `json:"nodeTimeout"`
 	ReadTimeout         string   `json:"readTimeout"`
+	RegistryURL         string   `json:"registryUrl"`
 }
 
 // LoadConfig loads the configuration from a file
@@ -67,6 +71,7 @@ func LoadConfig(path string) (*Config, error) {
 		RPCPort:           jsonConfig.RPCPort,
 		Nodes:             jsonConfig.Nodes,
 		ReplicationFactor: jsonConfig.ReplicationFactor,
+		RegistryURL:       jsonConfig.RegistryURL,
 	}
 
 	// Parse string durations from JSON into time.Duration
@@ -107,6 +112,10 @@ func LoadConfig(path string) (*Config, error) {
 
 	if len(config.Nodes) < config.ReplicationFactor {
 		return nil, fmt.Errorf("not enough nodes for requested replication factor")
+	}
+
+	if config.RegistryURL == "" {
+		return nil, fmt.Errorf("registryUrl is required")
 	}
 
 	return config, nil

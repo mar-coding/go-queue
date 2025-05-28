@@ -74,6 +74,19 @@ func main() {
 		}
 	}()
 
+	// Register with load balancer after services are running
+	if err := service.RegisterWithLoadBalancer(
+		cfg.NodeID,
+		cfg.HTTPPort,
+		cfg.RPCPort,
+		cfg.RegistryURL,
+		"/lb/register",
+	); err != nil {
+		log.Printf("Failed to register with load balancer: %v", err)
+	} else {
+		log.Printf("Successfully registered with load balancer")
+	}
+
 	// Wait for the termination signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

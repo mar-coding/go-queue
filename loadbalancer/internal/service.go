@@ -13,6 +13,7 @@ type Node struct {
 	ID                string
 	Address           string
 	Port              string
+	RPCPort           string
 	Healthy           bool
 	LastSeen          time.Time
 	ActiveConnections int64
@@ -56,7 +57,7 @@ func (s *Service) checkNodesHealth() {
 
 	for _, node := range s.nodes {
 		// Ping the node
-		err := s.rpcClient.Ping(ctx, node.Address+":"+node.Port, "")
+		err := s.rpcClient.Ping(ctx, node.Address+":"+node.RPCPort, "")
 		if err != nil {
 			node.Healthy = false
 		} else {
@@ -104,7 +105,7 @@ func (s *Service) GetHealthyNode() (*Node, error) {
 }
 
 // RegisterNode registers a new node with the load balancer
-func (s *Service) RegisterNode(id, address, port string) error {
+func (s *Service) RegisterNode(id, address, port, rpcPort string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -118,6 +119,7 @@ func (s *Service) RegisterNode(id, address, port string) error {
 		ID:                id,
 		Address:           address,
 		Port:              port,
+		RPCPort:           rpcPort,
 		Healthy:           true,
 		LastSeen:          time.Now(),
 		ActiveConnections: 0,
