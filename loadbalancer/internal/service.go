@@ -3,6 +3,8 @@ package internal
 import (
 	"context"
 	"fmt"
+	RPCCLIENT "github.com/mar-coding/go-queue/loadbalancer/internal/transport/rpc"
+	myType "github.com/mar-coding/go-queue/loadbalancer/types"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -23,15 +25,10 @@ type Service struct {
 	nodes         map[string]*Node
 	mu            sync.RWMutex
 	checkInterval time.Duration
-	rpcClient     RPCClient
+	rpcClient     RPCCLIENT.Client
 }
 
-// RPCClient interface for minimal RPC operations
-type RPCClient interface {
-	Ping(ctx context.Context, address string, msg string) error
-}
-
-func NewService(checkInterval time.Duration, rpcClient RPCClient) *Service {
+func NewService(checkInterval time.Duration, rpcClient RPCCLIENT.Client) *Service {
 	s := &Service{
 		nodes:         make(map[string]*Node),
 		checkInterval: checkInterval,
@@ -67,7 +64,7 @@ func (s *Service) checkNodesHealth() {
 	}
 }
 
-// GetHealthyNode returns a healthy node using least connection strategy
+// GetHealthyNode returns a healthy node using the least connection strategy
 func (s *Service) GetHealthyNode() (*Node, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -180,4 +177,16 @@ func (s *Service) GetNodeStats() map[string]interface{} {
 		}
 	}
 	return stats
+}
+
+// Register handles RPC registration requests
+func (s *Service) Register(req *myType.RegisterNodeRequest, resp *myType.RegisterNodeResponse) error {
+	err := s.RegisterNode(req.ID, "", req.Port, req.RPCPort)
+	if err != nil {
+		return err
+	}
+
+	resp.Status = "registered"
+	resp.NodeID = req.ID
+	return nil
 }

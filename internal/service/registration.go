@@ -1,36 +1,29 @@
+// registration.go
 package service
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"net/http"
+	myRPC "github.com/mar-coding/go-queue/internal/transport"
+	"net/rpc"
 )
 
-func RegisterWithLoadBalancer(nodeID, port, rpcPort, loadBalancerURL, registerPath string) error {
-	registerRequest := struct {
-		ID      string `json:"id"`
-		Port    string `json:"port"`
-		RPCPort string `json:"rpcPort"`
-	}{
+func RegisterWithLoadBalancer(nodeID, port, rpcPort, loadBalancerAddr string) error {
+	client, err := rpc.Dial("tcp", loadBalancerAddr)
+	if err != nil {
+		return fmt.Errorf("failed to connect to load balancer: %w", err)
+	}
+	defer client.Close()
+
+	req := &myRPC.RegisterNodeRequest{
 		ID:      nodeID,
 		Port:    port,
 		RPCPort: rpcPort,
 	}
+	var resp myRPC.RegisterNodeResponse // Changed from RegisterNodeRequest to RegisterNodeResponse
 
-	jsonData, err := json.Marshal(registerRequest)
+	err = client.Call("NodeService.Register", req, &resp)
 	if err != nil {
-		return fmt.Errorf("failed to marshal registration request: %w", err)
-	}
-
-	resp, err := http.Post(loadBalancerURL+registerPath, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("failed to register with load balancer: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("load balancer returned non-OK status: %d", resp.StatusCode)
+		return fmt.Errorf("registration failed: %w", err)
 	}
 
 	return nil

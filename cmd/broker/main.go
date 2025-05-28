@@ -80,7 +80,6 @@ func main() {
 		cfg.HTTPPort,
 		cfg.RPCPort,
 		cfg.RegistryURL,
-		"/lb/register",
 	); err != nil {
 		log.Printf("Failed to register with load balancer: %v", err)
 	} else {

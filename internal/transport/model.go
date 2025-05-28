@@ -1,6 +1,8 @@
 package transport
 
-import "github.com/mar-coding/go-queue/internal/transport/rpc"
+import (
+	"github.com/mar-coding/go-queue/internal/transport/rpc"
+)
 
 // MessageData contains data about a message
 type MessageData struct {
@@ -46,3 +48,14 @@ type CommandResponse = rpc.CommandResponse
 
 // CommandType represents the type of a command
 type CommandType = rpc.CommandType
+
+type RegisterNodeRequest struct {
+	ID      string `json:"id"`
+	Port    string `json:"port"`
+	RPCPort string `json:"rpcPort"`
+}
+
+type RegisterNodeResponse struct {
+	Status string `json:"status"`
+	NodeID string `json:"node_id"`
+}

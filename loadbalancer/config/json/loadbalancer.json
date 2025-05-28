@@ -1,7 +1,9 @@
 {
   "nodeId": "loadbalancer",
   "httpPort": "8080",
+  "rpcPort": "8090",
   "healthCheckInterval": "10s",
   "nodeTimeout": "5s",
-  "readTimeout": "2s"
+  "readTimeout": "2s",
+  "writeTimeout": "1s"
 }
