@@ -121,11 +121,35 @@ The system follows a multi-node architecture with the following components:
 - Custom RPC implementation may not be as robust as established frameworks
 - Two different protocols increase implementation complexity
 
+### 6. Load Balancer
+
+**Decision**: Implemented a centralized load balancer with least connections strategy.
+
+**Rationale**:
+- Provides a single entry point for client requests
+- Distributes load evenly across broker nodes
+- Enables automatic health monitoring of nodes
+- Simplifies client implementation by hiding node complexity
+
+**Trade-offs**:
+- Single point of failure (can be mitigated with redundant load balancers)
+- Additional network hop for all requests
+- Requires node registration and health check mechanisms
+
+## Load Balancer Features
+
+- **Dynamic Node Registration**: Nodes automatically register with the load balancer
+- **Health Monitoring**: Continuous health checks of registered nodes
+- **Least Connections Strategy**: Routes requests to nodes with fewer active connections
+- **Transparent Proxying**: Forwards client requests to appropriate nodes
+- **IPv4/IPv6 Support**: Handles both IP protocols with IPv4 preference
+- **Statistics API**: Provides node health and connection statistics
+
 ## Implementation Details
 
 ### Technology Stack
 
-- **Language**: Go 1.19
+- **Language**: Go 1.24
 - **Concurrency**: Goroutines and channels for parallel processing
 - **HTTP Framework**: Standard Go HTTP library
 - **Persistence**: Custom file-based storage implementation
@@ -175,14 +199,23 @@ The system follows a multi-node architecture with the following components:
 
 ### Prerequisites
 
-- Go 1.19 or later
+- Go 1.24 or later
 - Linux/macOS/Windows operating system
-
+### Running the load balancer 
+```bash
+# Start a broker node
+./loadbalancer.sh
+```
 ### Running a Single Broker
 
 ```bash
 # Start a broker node
 ./start.sh 1
+```
+in windows
+```bash
+# Start a broker node
+./start.ps1 1
 ```
 
 ### Running a Cluster
@@ -193,6 +226,14 @@ The system follows a multi-node architecture with the following components:
 ./start.sh 2  # In terminal 2
 ./start.sh 3  # In terminal 3
 ```
+in windows
+```bash
+# Start multiple broker nodes
+./start.ps1 1  # In terminal 1
+./start.ps1 2  # In terminal 2
+./start.ps1 3  # In terminal 3
+```
+
 
 ### Testing the System
 
@@ -202,6 +243,58 @@ The system follows a multi-node architecture with the following components:
 ```
 
 ## API Reference
+
+### Load Balancer API
+
+#### Node Registration
+```
+POST /lb/register 
+{
+   "id": "node1",
+   "port": "8080",
+   "rpcPort": "8081"
+}
+``` 
+
+Response:
+```
+{
+   "status": "registered",
+   "node_id": "node1"
+}
+``` 
+
+#### Load Balancer Status
+```
+GET /lb/status
+``` 
+
+Response:
+```
+{
+   "healthy_nodes": 3,
+   "total_nodes": 3
+}
+``` 
+
+#### Detailed Node Statistics
+```
+GET /lb/stats
+``` 
+
+Response:
+```
+{
+"node1":
+   {
+      "address": "127.0.0.1:8080",
+      "healthy": true,
+      "last_seen": "2024-01-01T12:00:00Z",
+      "active_connections": 5
+   },
+      ...
+   }
+```
 
 ### Create Queue
 
@@ -271,6 +364,57 @@ Response:
   "queueCount": 5
 }
 ```
+
+### Node Registration Process
+
+1. When a broker node starts:
+   - It reads configuration including load balancer URL
+   - Automatically registers with the load balancer
+   - Provides its HTTP and RPC ports for communication
+
+2. Load balancer:
+   - Validates the registration request
+   - Records node information
+   - Starts health monitoring
+   - Includes node in the request routing pool
+
+3. Health checking:
+   - Load balancer periodically checks node health via RPC
+   - Unhealthy nodes are removed from the routing pool
+   - Nodes can rejoin when they become healthy again
+
+### Configuration
+
+Load Balancer configuration (`loadbalancer/config/loadbalancer.json`):
+``` 
+{
+   "httpPort": "8090",
+   "healthCheckInterval": "10s",
+   "nodeTimeout": "5s",
+   "readTimeout": "30s",
+   "writeTimeout": "30s"
+}
+```
+
+Node configuration (`config/config.json`):
+```
+{
+  "nodeId": "node1",
+  "httpPort": "6001",
+  "rpcPort": "5001",
+  "nodes": [
+    "localhost:5001",
+    "localhost:5002",
+    "192.168.1.56:5003"
+  ],
+  "replicationFactor": 2,
+  "healthCheckInterval": "10s",
+  "nodeTimeout": "5s",
+  "readTimeout": "2s",
+  "registryUrl": "http://localhost:8080"
+}
+```
+
 
 ## Reliability Analysis
 
