@@ -1,0 +1,14 @@
+{
+  "nodeId": "node2",
+  "httpPort": "6002",
+  "rpcPort": "5002",
+  "nodes": [
+    "localhost:5001",
+    "localhost:5002",
+    "localhost:5003"
+  ],
+  "replicationFactor": 2,
+  "healthCheckInterval": "10s",
+  "nodeTimeout": "5s",
+  "readTimeout": "2s"
+}
