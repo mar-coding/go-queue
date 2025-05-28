@@ -1,0 +1,7 @@
+{
+  "nodeId": "loadbalancer",
+  "httpPort": "8080",
+  "healthCheckInterval": "10s",
+  "nodeTimeout": "5s",
+  "readTimeout": "2s"
+}
