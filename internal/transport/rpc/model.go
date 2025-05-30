@@ -13,6 +13,9 @@ const (
 	// CommandTypeAppendMessage is a command to append a message to a queue
 	CommandTypeAppendMessage CommandType = "appendMessage"
 
+	// CommandTypeReplicateMessage is a command to replicate a message to other nodes
+	CommandTypeReplicateMessage CommandType = "replicateMessage"
+
 	// CommandTypeReadMessage is a command to read a message from a queue
 	CommandTypeReadMessage CommandType = "readMessage"
 

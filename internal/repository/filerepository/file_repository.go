@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+
 	"github.com/mar-coding/go-queue/internal/entity"
 	"github.com/mar-coding/go-queue/internal/pkg/filestorage"
 	"github.com/mar-coding/go-queue/internal/repository"
-	"sync"
 )
 
 type QueueRepository struct {
@@ -208,9 +209,6 @@ func (r *QueueRepository) UpdateQueueReplicas(ctx context.Context, queueID strin
 
 // GetQueuesByReplica gets all queues that have a specific node as a replica
 func (r *QueueRepository) GetQueuesByReplica(ctx context.Context, nodeID string) ([]*entity.Queue, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	// List all queues and filter by the nodeID
 	queues, err := r.ListQueues(ctx)
 	if err != nil {

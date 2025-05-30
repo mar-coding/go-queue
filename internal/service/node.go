@@ -2,14 +2,15 @@ package service
 
 import (
 	"context"
-	"github.com/mar-coding/go-queue/config"
-	"github.com/mar-coding/go-queue/internal/entity"
-	"github.com/mar-coding/go-queue/internal/repository"
-	"github.com/mar-coding/go-queue/internal/transport/rpc"
 	"log"
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/mar-coding/go-queue/config"
+	"github.com/mar-coding/go-queue/internal/entity"
+	"github.com/mar-coding/go-queue/internal/repository"
+	"github.com/mar-coding/go-queue/internal/transport/rpc"
 )
 
 // NodeService handles node management and health checking
@@ -84,7 +85,6 @@ func (s *NodeService) checkNodeHealth() {
 		if err != nil {
 			log.Printf("Node %s (%s) is unreachable: %v", node.ID, node.Address, err)
 			s.nodeRegistry.UpdateNodeStatus(node.ID, entity.NodeStatusDead)
-
 			// Handle node failure - reassign queues
 			go s.handleNodeFailure(node.ID)
 		} else {
@@ -160,7 +160,11 @@ func (s *NodeService) findNewReplicaNode(currentReplicas []string) string {
 	}
 
 	// Pick a random node from the candidates
-	return candidates[rand.Intn(len(candidates))]
+	newReplica := candidates[rand.Intn(len(candidates))]
+
+	log.Printf("Selected new replica node: %s", newReplica)
+
+	return newReplica
 }
 
 // syncQueueToNewReplica syncs queue data to a new replica
@@ -188,9 +192,18 @@ func (s *NodeService) syncQueueToNewReplica(ctx context.Context, queueID, nodeID
 
 	// Send all messages to the new replica
 	for _, message := range queue.Messages {
-		err := s.rpcClient.AppendMessage(ctx, node.Address, message.QueueID, message.ID, message.Data)
+		err := s.rpcClient.ReplicateMessage(ctx, node.Address, message.QueueID, message.ID, message.Data, message.Index)
 		if err != nil {
 			log.Printf("Failed to sync message %s to node %s: %v", message.ID, nodeID, err)
+			continue
+		}
+	}
+
+	// Send client offsets to the new replica
+	for clientID, offset := range queue.ClientOffsets {
+		err := s.rpcClient.UpdateClientOffset(ctx, node.Address, queue.ID, clientID, offset)
+		if err != nil {
+			log.Printf("Failed to update offset for client %s on node %s: %v", clientID, nodeID, err)
 			continue
 		}
 	}

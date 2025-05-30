@@ -51,14 +51,33 @@ func (c *Client) CreateQueue(ctx context.Context, address, queueID, queueName st
 }
 
 // AppendMessage sends a request to append a message to a queue on another node
-func (c *Client) AppendMessage(ctx context.Context, address, queueID, messageID string, data []byte) error {
+func (c *Client) AppendMessage(ctx context.Context, address, queueID, clientID string, data []byte) (*MessageData, error) {
 	cmd := &Command{
-		Type:      CommandTypeAppendMessage,
+		Type:     CommandTypeAppendMessage,
+		QueueID:  queueID,
+		ClientID: clientID,
+		Data:     data,
+	}
+
+	resp, err := c.sendCommand(ctx, address, cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	return &MessageData{
+		ID: resp.MessageID,
+	}, nil
+}
+
+// ReplicateMessage sends a request to replicate a message to other nodes
+func (c *Client) ReplicateMessage(ctx context.Context, address, queueID, messageID string, data []byte, index int) error {
+	cmd := &Command{
+		Type:      CommandTypeReplicateMessage,
 		QueueID:   queueID,
 		MessageID: messageID,
 		Data:      data,
+		Index:     index,
 	}
-
 	_, err := c.sendCommand(ctx, address, cmd)
 	return err
 }

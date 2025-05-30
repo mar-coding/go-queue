@@ -3,12 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/mar-coding/go-queue/internal/entity"
-	"github.com/mar-coding/go-queue/internal/repository"
-	"github.com/mar-coding/go-queue/internal/transport/rpc"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/mar-coding/go-queue/internal/entity"
+	"github.com/mar-coding/go-queue/internal/repository"
+	"github.com/mar-coding/go-queue/internal/transport/rpc"
 
 	"github.com/mar-coding/go-queue/config"
 
@@ -137,7 +138,14 @@ func (s *QueueService) AppendMessage(ctx context.Context, queueID, clientID stri
 	}
 
 	// Forward the message to other replicas
-	go s.replicateMessage(queueID, messageID, data, queue.Replicas)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("panic in replicateMessage: %v", r)
+			}
+		}()
+		s.replicateMessage(queueID, messageID, data, queue.Replicas, message.Index)
+	}()
 
 	return messageID, nil
 }
@@ -175,17 +183,16 @@ func (s *QueueService) forwardAppendMessage(ctx context.Context, queueID, client
 	}
 
 	// We need to generate a message ID as the AppendMessage RPC method doesn't return one
-	messageID := uuid.New().String()
-	err := s.rpcClient.AppendMessage(ctx, address, queueID, messageID, data)
+	resp, err := s.rpcClient.AppendMessage(ctx, address, queueID, clientID, data)
 	if err != nil {
 		return "", err
 	}
 
-	return messageID, nil
+	return resp.ID, nil
 }
 
 // replicateMessage replicates a message to all replica nodes
-func (s *QueueService) replicateMessage(queueID, messageID string, data []byte, replicas []string) {
+func (s *QueueService) replicateMessage(queueID, messageID string, data []byte, replicas []string, index int) {
 	ctx, cancel := context.WithTimeout(context.Background(), s.config.NodeTimeout)
 	defer cancel()
 
@@ -212,7 +219,7 @@ func (s *QueueService) replicateMessage(queueID, messageID string, data []byte, 
 				return
 			}
 
-			err := s.rpcClient.AppendMessage(ctx, address, queueID, messageID, data)
+			err := s.rpcClient.ReplicateMessage(ctx, address, queueID, messageID, data, index)
 			if err != nil {
 				log.Printf("Failed to replicate message to node %s: %v", nodeID, err)
 			}
@@ -372,6 +379,29 @@ func (s *QueueService) GetNodeStatus() map[string]interface{} {
 	return nodeStatus
 }
 
+// replicaMessage replicates a message in a queue and if the queue does not exist, it will create it
+func (s *QueueService) replicaMessage(ctx context.Context, queueID, messageID string, data []byte, index int) error {
+	// Check if the queue exists locally
+	queue, err := s.queueRepo.GetQueue(ctx, queueID)
+	if err != nil {
+		// Queue doesn't exist locally, create it
+		queue = entity.NewQueue(queueID, "", nil)
+		if err := s.queueRepo.CreateQueue(ctx, queue); err != nil {
+			return fmt.Errorf("failed to create queue for replication: %w", err)
+		}
+	}
+
+	// Create the message
+	message := entity.NewMessage(messageID, queueID, index, data)
+
+	// Append the message to the queue
+	if err := s.queueRepo.AppendMessage(ctx, queueID, message); err != nil {
+		return fmt.Errorf("failed to append replicated message: %w", err)
+	}
+
+	return nil
+}
+
 // ProcessCommand handles internal commands from other nodes
 func (s *QueueService) ProcessCommand(cmd *rpc.Command) *rpc.CommandResponse {
 	ctx := context.Background()
@@ -402,15 +432,22 @@ func (s *QueueService) ProcessCommand(cmd *rpc.Command) *rpc.CommandResponse {
 
 	case rpc.CommandTypeAppendMessage:
 		// Add a message to a queue
-		message := entity.NewMessage(cmd.MessageID, cmd.QueueID, cmd.Index, cmd.Data)
-		err := s.queueRepo.AppendMessage(ctx, cmd.QueueID, message)
+		id, err := s.AppendMessage(ctx, cmd.QueueID, cmd.ClientID, cmd.Data)
 		if err != nil {
 			resp.Success = false
 			resp.Error = err.Error()
 		}
+		resp.MessageID = id
 
+	case rpc.CommandTypeReplicateMessage:
+		// Add a message to a queue
+		err := s.replicaMessage(ctx, cmd.QueueID, cmd.MessageID, cmd.Data, cmd.Index)
+		if err != nil {
+			resp.Success = false
+			resp.Error = err.Error()
+		}
 	case rpc.CommandTypeReadMessage:
-		message, err := s.queueRepo.ReadMessageForClient(ctx, cmd.QueueID, cmd.ClientID)
+		message, err := s.ReadMessage(ctx, cmd.QueueID, cmd.ClientID)
 		if err != nil {
 			resp.Success = false
 			resp.Error = err.Error()
